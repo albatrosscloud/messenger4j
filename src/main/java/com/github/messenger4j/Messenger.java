@@ -79,8 +79,10 @@ public final class Messenger {
 
     private static final String FB_GRAPH_API_URL_MESSAGES = "https://graph.facebook.com/v2.11/me/messages?access_token=%s";
     private static final String FB_GRAPH_API_URL_MESSENGER_PROFILE = "https://graph.facebook.com/v2.11/me/messenger_profile?access_token=%s";
-    private static final String FB_GRAPH_API_URL_USER = "https://graph.facebook.com/v2.11/%s?fields=first_name," +
-            "last_name,profile_pic,locale,timezone,gender,is_payment_enabled,last_ad_referral&access_token=%s";
+    private static final String FB_GRAPH_API_URL_USER = "https://graph.facebook.com/v2.11/%s?access_token=%s"
+            + "&fields=name,first_name,last_name,profile_pic";
+
+    private static final String FB_GRAPH_API_URL_USER_FULL = FB_GRAPH_API_URL_USER + ",locale,timezone,gender";
 
     private final String pageAccessToken;
     private final String appSecret;
@@ -97,7 +99,7 @@ public final class Messenger {
     }
 
     public static Messenger create(@NonNull String pageAccessToken, @NonNull String appSecret,
-                                   @NonNull String verifyToken, @NonNull Optional<MessengerHttpClient> customHttpClient) {
+            @NonNull String verifyToken, @NonNull Optional<MessengerHttpClient> customHttpClient) {
 
         return new Messenger(pageAccessToken, appSecret, verifyToken, customHttpClient);
     }
@@ -121,13 +123,13 @@ public final class Messenger {
     }
 
     public void onReceiveEvents(@NonNull String requestPayload, @NonNull Optional<String> signature,
-                                @NonNull Consumer<Event> eventHandler)
+            @NonNull Consumer<Event> eventHandler)
             throws MessengerVerificationException {
 
         if (signature.isPresent()) {
             if (!SignatureUtil.isSignatureValid(requestPayload, signature.get(), this.appSecret)) {
-                throw new MessengerVerificationException("Signature verification failed. " +
-                        "Provided signature does not match calculated signature.");
+                throw new MessengerVerificationException("Signature verification failed. "
+                        + "Provided signature does not match calculated signature.");
             }
         } else {
             log.warn("No signature provided, hence the signature verification is skipped. THIS IS NOT RECOMMENDED");
@@ -137,8 +139,8 @@ public final class Messenger {
 
         final Optional<String> objectType = getPropertyAsString(payloadJsonObject, PROP_OBJECT);
         if (!objectType.isPresent() || !objectType.get().equalsIgnoreCase(OBJECT_TYPE_PAGE)) {
-            throw new IllegalArgumentException("'object' property must be 'page'. " +
-                    "Make sure this is a page subscription");
+            throw new IllegalArgumentException("'object' property must be 'page'. "
+                    + "Make sure this is a page subscription");
         }
 
         final JsonArray entries = getPropertyAsJsonArray(payloadJsonObject, PROP_ENTRY)
@@ -158,16 +160,24 @@ public final class Messenger {
             throw new MessengerVerificationException("Webhook verification failed. Mode '" + mode + "' is invalid.");
         }
         if (!verifyToken.equals(this.verifyToken)) {
-            throw new MessengerVerificationException("Webhook verification failed. Verification token '" +
-                    verifyToken + "' is invalid.");
+            throw new MessengerVerificationException("Webhook verification failed. Verification token '"
+                    + verifyToken + "' is invalid.");
         }
     }
 
     public UserProfile queryUserProfile(@NonNull String userId) throws MessengerApiException, MessengerIOException {
         final String requestUrl = String.format(FB_GRAPH_API_URL_USER, userId, pageAccessToken);
-        return doRequest(GET, requestUrl, empty(), UserProfileFactory::create);
+        return this.queryUserProfile(userId, requestUrl);
     }
 
+    public UserProfile queryUserProfileFull(@NonNull String userId) throws MessengerApiException, MessengerIOException {
+        final String requestUrl = String.format(FB_GRAPH_API_URL_USER_FULL, userId, pageAccessToken);
+        return this.queryUserProfile(userId, requestUrl);
+    }
+
+    private UserProfile queryUserProfile(@NonNull String userId, String requestUrl) throws MessengerApiException, MessengerIOException {
+        return doRequest(GET, requestUrl, empty(), UserProfileFactory::create);
+    }
 
     public SetupResponse updateSettings(@NonNull MessengerSettings messengerSettings)
             throws MessengerApiException, MessengerIOException {
@@ -186,7 +196,7 @@ public final class Messenger {
     }
 
     private <R> R doRequest(HttpMethod httpMethod, String requestUrl, Optional<Object> payload,
-                            Function<JsonObject, R> responseTransformer)
+            Function<JsonObject, R> responseTransformer)
             throws MessengerApiException, MessengerIOException {
 
         try {
